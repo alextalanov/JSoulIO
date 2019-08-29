@@ -6,7 +6,11 @@ repositories {
     jcenter()
 }
 
+
+version = '0.1.0'
+
 dependencies {
+    implementation 'com.gmail.wristylotus:JSoulIO:0.1.0'
     implementation 'com.google.guava:guava:27.0.1-jre'
     testImplementation 'junit:junit:4.12'
 }
@@ -14,11 +18,9 @@ dependencies {
 sourceCompatibility = '1.8'
 targetCompatibility = '1.8'
 
-version = '0.1.0'
-
 jar {
     manifest {
-        attributes('Implementation-Title': "JSoulIO",
+        attributes('Implementation-Title': rootProject.name,
                 'Implementation-Version': version)
     }
 }
