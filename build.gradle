@@ -10,7 +10,6 @@ repositories {
 version = '0.1.0'
 
 dependencies {
-    implementation 'com.gmail.wristylotus:JSoulIO:0.1.0'
     implementation 'com.google.guava:guava:27.0.1-jre'
     testImplementation 'junit:junit:4.12'
 }

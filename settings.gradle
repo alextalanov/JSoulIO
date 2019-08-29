@@ -1,7 +1,1 @@
 rootProject.name = 'JSoulIO'
-
-sourceControl {
-    gitRepository("https://github.com/alextalanov/JSoulIO.git") {
-        producesModule("com.gmail.wristylotus:JSoulIO")
-    }
-}
