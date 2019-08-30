@@ -1,41 +1,35 @@
 package com.gmail.wristylotus;
 
 import java.util.Optional;
-import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.function.Consumer;
 
 public class CancelableIO<T> {
 
-    private final ExecutorService executor = Executors.newSingleThreadExecutor();
+    private final ExecutorService executor = Executors.newCachedThreadPool();
 
-    private final IOContext<T> context = new IOContext<>(this::syncCancel);
+    private final CancelableContextIO<T> context = new CancelableContextIO<>(syncCancel(), executor);
 
-    private final Cancel cancel;
+    private final IO<Unit> cancel;
 
-    public CancelableIO(CancelableTask<T> cancel) {
-        this.cancel = cancel.apply(context);
+    public CancelableIO(CancelableTask<T> task) {
+        this.cancel = task.apply(context);
     }
 
-    public synchronized void syncCancel() {
-        if (nonCanceled()) {
-            try {
-                cancel.apply();
+    public synchronized IO<Unit> syncCancel() {
+        return IO.of(() -> {
+            if (nonCanceled()) {
+                cancel.unsafeRun();
                 executor.shutdown();
-                context.destroy();
-            } catch (Exception ex) {
-                throw new CancellationException(ex);
             }
-        }
+        });
+
     }
 
-    public static Cancel unit() {
-        return () -> {};
-    }
-
-    public synchronized void asyncCancel() {
-        asyncCancel(() -> {});
+    public synchronized IO<Unit> asyncCancel() {
+        return asyncCancel(() -> {});
     }
 
     public boolean isDone() {
@@ -47,7 +41,7 @@ public class CancelableIO<T> {
     }
 
     public synchronized void asyncVal(Consumer<Optional<T>> consumer) {
-        if(nonCanceled()) {
+        if (nonCanceled()) {
             executor.execute(() -> {
                 join();
                 consumer.accept(syncVal());
@@ -57,29 +51,24 @@ public class CancelableIO<T> {
         }
     }
 
-    public void join() {
-        context.tasks().forEachRemaining(task -> {
-            try {
-                task.get();
-            } catch (InterruptedException | ExecutionException ex) {
-                throw new CancellationException(ex);
-            }
-        });
+    public IO<Unit> join() {
+        return IO.of(() ->
+                context.tasks().forEachRemaining(task ->
+                        IO.convertToUnchecked((Callable<?>) task::get, IllegalStateException::new))
+        );
     }
 
-    public synchronized void asyncCancel(Runnable callback) {
-        if (nonCanceled()) {
-            executor.submit(() -> {
-                try {
-                    syncCancel();
+    public synchronized IO<Unit> asyncCancel(Runnable callback) {
+        return IO.of(() -> {
+            if (nonCanceled()) {
+                executor.submit(() -> {
+                    syncCancel().unsafeRun();
                     callback.run();
-                } catch (Exception ex) {
-                    throw new CancellationException(ex);
-                }
-            });
-        } else {
-            throw new IllegalStateException("Task already has been canceled.");
-        }
+                });
+            } else {
+                throw new IllegalStateException("Task already has been canceled.");
+            }
+        });
     }
 
     public boolean isCanceled() {
@@ -89,6 +78,4 @@ public class CancelableIO<T> {
     public boolean nonCanceled() {
         return !isCanceled();
     }
-
-    public interface Empty {}
 }

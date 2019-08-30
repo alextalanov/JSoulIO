@@ -7,27 +7,24 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicReference;
 
-public final class IOContext<T> {
+public final class CancelableContextIO<T> {
 
     private final AtomicReference<T> value = new AtomicReference<>();
 
-    private final ExecutorService executor = Executors.newCachedThreadPool();
+    private final ExecutorService executor;
     protected volatile boolean isDone = false;
-    private final Cancel cancel;
+    private final IO cancel;
     private final ConcurrentLinkedQueue<Future<?>> taskQueue = new ConcurrentLinkedQueue<>();
 
-    protected IOContext(Cancel cancel) {
+    protected CancelableContextIO(IO<Unit> cancel, ExecutorService executor) {
         this.cancel = cancel;
+        this.executor = executor;
     }
 
-    public void blocking(Task task) {
+    public void blocking(Runnable task) {
         final Future<?> futureTask = executor.submit(() -> {
-            task.apply();
-            try {
-                cancel.apply();
-            } catch (Exception ex) {
-                throw new CancellationException(ex);
-            }
+            task.run();
+            cancel.unsafeRun();
             isDone = true;
         });
         taskQueue.add(futureTask);
@@ -44,9 +41,4 @@ public final class IOContext<T> {
     protected T value() {
         return this.value.get();
     }
-
-    protected void destroy(){
-        executor.shutdown();
-    }
-
 }
